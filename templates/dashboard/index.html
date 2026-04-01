@@ -1,0 +1,1533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ElectionAI — Live Dashboard</title>
+<script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap');
+
+  :root {
+    --bg: #0a0e1a;
+    --bg2: #111827;
+    --bg3: #1a2235;
+    --accent: #f97316;
+    --accent2: #3b82f6;
+    --green: #22c55e;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --border: rgba(255,255,255,0.08);
+    --bjp: #FF9933;
+    --inc: #19AAED;
+    --aap: #0078A4;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+  }
+
+  /* ── Header ── */
+  header {
+    background: linear-gradient(90deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+    border-bottom: 2px solid var(--accent);
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 60px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .logo {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: #fff;
+  }
+  .logo span { color: var(--accent); }
+
+  .live-badge {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    background: rgba(239,68,68,0.15);
+    border: 1px solid rgba(239,68,68,0.4);
+    border-radius: 4px;
+    padding: 4px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    color: #ef4444;
+  }
+  .live-dot {
+    width: 8px; height: 8px;
+    background: #ef4444;
+    border-radius: 50%;
+    animation: blink 1s infinite;
+  }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  .header-time {
+    font-size: 13px;
+    color: var(--muted);
+    font-family: 'Rajdhani', sans-serif;
+    letter-spacing: 1px;
+  }
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .header-btn {
+    border: 1px solid var(--border);
+    background: rgba(255,255,255,0.03);
+    color: var(--text);
+    border-radius: 999px;
+    padding: 8px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .header-btn:hover {
+    border-color: rgba(255,255,255,0.2);
+    background: rgba(255,255,255,0.08);
+  }
+  .header-btn.logout-btn {
+    border-color: rgba(249,115,22,0.45);
+    color: #ffd2b2;
+  }
+  .profile-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(3, 6, 16, 0.7);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    z-index: 300;
+  }
+  .profile-modal.open {
+    display: flex;
+  }
+  .profile-card {
+    width: 100%;
+    max-width: 420px;
+    background: linear-gradient(180deg, #111827 0%, #0f172a 100%);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 24px;
+    box-shadow: 0 24px 60px rgba(0,0,0,0.35);
+  }
+  .profile-card h2 {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 24px;
+    margin-bottom: 18px;
+  }
+  .profile-grid {
+    display: grid;
+    gap: 12px;
+    margin-bottom: 18px;
+  }
+  .profile-item {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+  }
+  .profile-item span {
+    display: block;
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .profile-item strong {
+    font-size: 15px;
+    color: #fff;
+  }
+  .profile-close {
+    width: 100%;
+  }
+
+  /* ── Ticker ── */
+  .ticker {
+    background: var(--accent);
+    color: #000;
+    padding: 6px 0;
+    overflow: hidden;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .ticker-inner {
+    display: flex;
+    animation: scroll 30s linear infinite;
+    white-space: nowrap;
+  }
+  .ticker-inner span { padding: 0 40px; }
+  @keyframes scroll { from{transform:translateX(0)} to{transform:translateX(-50%)} }
+
+  /* ── Layout ── */
+  .container { max-width: 1400px; margin: 0 auto; padding: 20px 24px; }
+
+  /* ── Stat Cards ── */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .stat-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 20px;
+    position: relative;
+    overflow: hidden;
+  }
+  .stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: var(--accent);
+  }
+  .stat-card:nth-child(2)::before { background: var(--accent2); }
+  .stat-card:nth-child(3)::before { background: var(--green); }
+  .stat-card:nth-child(4)::before { background: #a855f7; }
+
+  .stat-label { font-size: 11px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 8px; }
+  .stat-value { font-family: 'Rajdhani', sans-serif; font-size: 32px; font-weight: 700; color: #fff; }
+  .stat-sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+  /* ── Charts Grid ── */
+  .charts-grid {
+    display: grid;
+    grid-template-columns: 1fr 1.4fr;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+
+  .chart-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .chart-title {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 12px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .chart-frame {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .chart-plot {
+    min-width: 0;
+  }
+  .chart-aside {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .insight-card {
+    background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+  }
+  .insight-card.featured {
+    background: linear-gradient(135deg, rgba(56,189,248,0.12), rgba(249,115,22,0.10));
+    border-color: rgba(255,255,255,0.12);
+  }
+  .insight-label {
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    margin-bottom: 6px;
+  }
+  .insight-value {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 20px;
+    font-weight: 700;
+    color: #fff;
+    line-height: 1;
+  }
+  .insight-sub {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 5px;
+  }
+  .analysis-strip {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .year-insight {
+    background: linear-gradient(135deg, rgba(56,189,248,0.08), rgba(249,115,22,0.08));
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .year-insight-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: flex-start;
+    margin-bottom: 14px;
+  }
+  .year-insight-header h3 {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 18px;
+    letter-spacing: 1px;
+    margin-bottom: 4px;
+  }
+  .year-insight-header p {
+    font-size: 13px;
+    color: var(--muted);
+    max-width: 720px;
+  }
+  .year-badge {
+    border: 1px solid rgba(255,255,255,0.12);
+    background: rgba(255,255,255,0.04);
+    border-radius: 999px;
+    padding: 8px 14px;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 16px;
+    color: #fff;
+    white-space: nowrap;
+  }
+  .year-insight-grid {
+    display: grid;
+    grid-template-columns: 1.1fr 1fr;
+    gap: 14px;
+    align-items: start;
+  }
+  .year-summary-card, .winner-list-card {
+    background: rgba(15,23,42,0.55);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px;
+  }
+  .year-summary-card {
+    align-self: start;
+  }
+  .summary-kpis {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-top: 12px;
+  }
+  .overview-map {
+    position: relative;
+    margin-top: 12px;
+    height: 260px;
+    border-radius: 14px;
+    border: 1px solid var(--border);
+    background:
+      radial-gradient(circle at 30% 35%, rgba(56,189,248,0.10), transparent 34%),
+      radial-gradient(circle at 68% 72%, rgba(249,115,22,0.10), transparent 32%),
+      linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
+    overflow: hidden;
+  }
+  .overview-map svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+  .overview-map.has-real-map {
+    background: rgba(255,255,255,0.02);
+  }
+  .overview-map.has-real-map svg,
+  .overview-map.has-real-map .map-district {
+    display: none;
+  }
+  #geoserver-map {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: none;
+  }
+  .overview-map.has-real-map #geoserver-map {
+    display: block;
+  }
+  #geoserver-map svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  .geojson-region {
+    cursor: pointer;
+    transition: opacity 0.18s ease, stroke 0.18s ease;
+  }
+  .geojson-region:hover {
+    opacity: 0.94;
+    stroke: rgba(255,255,255,0.9);
+    stroke-width: 1.2;
+  }
+  .map-district {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    border-radius: 999px;
+    border: 2px solid rgba(10,14,26,0.9);
+    box-shadow: 0 0 0 4px rgba(255,255,255,0.04);
+    transform: translate(-50%, -50%);
+  }
+  .map-district:hover::after {
+    content: attr(data-label);
+    position: absolute;
+    left: 12px;
+    top: -8px;
+    background: rgba(15,23,42,0.96);
+    border: 1px solid var(--border);
+    color: #fff;
+    padding: 6px 8px;
+    border-radius: 8px;
+    white-space: nowrap;
+    font-size: 11px;
+  }
+  .map-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .map-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--muted);
+    padding: 4px 8px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+  }
+  .map-legend-swatch {
+    width: 9px;
+    height: 9px;
+    border-radius: 999px;
+  }
+  .summary-kpi {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px;
+  }
+  .summary-kpi .insight-value {
+    font-size: 18px;
+  }
+  .winner-list {
+    display: grid;
+    gap: 10px;
+    margin-top: 12px;
+  }
+  .candidate-toolbar {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-top: 12px;
+    margin-bottom: 10px;
+  }
+  .candidate-search {
+    flex: 1;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--text);
+    padding: 10px 12px;
+    font-size: 13px;
+    outline: none;
+  }
+  .candidate-meta {
+    font-size: 11px;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .winner-item {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+  }
+  .winner-item strong {
+    display: block;
+    color: #fff;
+    font-size: 14px;
+    margin-bottom: 3px;
+  }
+  .winner-item span {
+    display: block;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.4;
+  }
+  .winner-item .winner-pill {
+    display: inline-block;
+    width: fit-content;
+    margin-top: 6px;
+    padding: 4px 8px;
+    border-radius: 999px;
+    background: rgba(34,197,94,0.12);
+    border: 1px solid rgba(34,197,94,0.24);
+    color: #bff7d0;
+    font-size: 10px;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+  }
+  .candidate-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 10px;
+  }
+  .candidate-pagination button {
+    background: rgba(255,255,255,0.05);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .candidate-pagination button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+  .filter-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    background: linear-gradient(135deg, rgba(56,189,248,0.06), rgba(249,115,22,0.06));
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 16px;
+  }
+  .filter-copy h3 {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 14px;
+    letter-spacing: 1px;
+    margin-bottom: 4px;
+  }
+  .filter-copy p {
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .filter-meta {
+    margin-top: 8px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .filter-pill {
+    border: 1px solid var(--border);
+    background: rgba(255,255,255,0.04);
+    color: #d6e4ff;
+    border-radius: 999px;
+    padding: 6px 10px;
+    font-size: 11px;
+    letter-spacing: 0.6px;
+  }
+  .filter-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .filter-select {
+    min-width: 150px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 10px 12px;
+    font-size: 13px;
+    outline: none;
+  }
+  .analysis-card {
+    background: linear-gradient(135deg, rgba(59,130,246,0.08), rgba(249,115,22,0.06));
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+  }
+  .analysis-card h3 {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 13px;
+    letter-spacing: 1px;
+    color: #dbe7ff;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+  }
+  .analysis-card p {
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--muted);
+  }
+  .analysis-card strong {
+    color: #fff;
+  }
+
+  .bottom-grid {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr;
+    gap: 16px;
+  }
+
+  /* ── Booth Locator Panel ── */
+  .booth-panel {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .booth-form {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+  .booth-form input {
+    flex: 1;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 14px;
+    color: var(--text);
+    font-size: 13px;
+    min-width: 120px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .booth-form input:focus { border-color: var(--accent2); }
+  .btn {
+    background: var(--accent);
+    color: #000;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 18px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s;
+    white-space: nowrap;
+  }
+  .btn:hover { opacity: 0.85; }
+  .btn-blue { background: var(--accent2); color: #fff; }
+
+  .booth-results { display: flex; flex-direction: column; gap: 8px; }
+  .booth-item {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .booth-name { font-size: 13px; font-weight: 500; }
+  .booth-meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .booth-dist {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--accent2);
+    white-space: nowrap;
+  }
+
+  /* ── Prediction Panel ── */
+  .predict-panel {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .predict-form { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
+  .predict-form input, .predict-form select {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 14px;
+    color: var(--text);
+    font-size: 13px;
+    outline: none;
+  }
+  .winner-box {
+    background: linear-gradient(135deg, rgba(249,115,22,0.15), rgba(249,115,22,0.05));
+    border: 1px solid rgba(249,115,22,0.3);
+    border-radius: 8px;
+    padding: 14px;
+    text-align: center;
+    margin-bottom: 12px;
+  }
+  .winner-party { font-family: 'Rajdhani', sans-serif; font-size: 28px; font-weight: 700; color: var(--accent); }
+  .winner-conf { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+  .prob-bar-wrap { margin-bottom: 8px; }
+  .prob-label { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px; }
+  .prob-bar-bg { height: 8px; background: var(--bg3); border-radius: 4px; overflow: hidden; }
+  .prob-bar { height: 100%; border-radius: 4px; transition: width 0.8s ease; }
+
+  .status-msg { font-size: 12px; color: var(--muted); text-align: center; padding: 20px; }
+  .error-msg { color: #ef4444; }
+
+  /* ── Map section ── */
+  #map-container { width: 100%; height: 400px; border-radius: 8px; overflow: hidden; }
+  #map-container iframe { width: 100%; height: 100%; border: none; }
+
+  @media (max-width: 900px) {
+    .stats-row { grid-template-columns: repeat(2, 1fr); }
+    .charts-grid, .bottom-grid { grid-template-columns: 1fr; }
+    .analysis-strip { grid-template-columns: 1fr; }
+    .year-insight-grid, .summary-kpis { grid-template-columns: 1fr; }
+    .chart-aside { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .filter-bar { flex-direction: column; align-items: stretch; }
+    .header-right, .header-actions { gap: 8px; }
+    .header-btn { padding: 7px 10px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">ELECTION<span>AI</span></div>
+  <div class="live-badge"><div class="live-dot"></div>LIVE</div>
+  <div class="header-right">
+    <div class="header-actions">
+      <button class="header-btn" type="button" onclick="openProfile()">Profile</button>
+      <button class="header-btn logout-btn" type="button" onclick="window.location.href='/logout/'">Logout</button>
+    </div>
+    <div class="header-time" id="clock">--:--:--</div>
+  </div>
+</header>
+
+<div class="ticker">
+  <div class="ticker-inner">
+    <span>📊 Election AI System Active</span>
+    <span>🗳️ Booth Locator: Find nearest polling stations using GPS</span>
+    <span>🤖 ML Model: XGBoost + GradientBoosting for result prediction</span>
+    <span>📍 Real-time constituency tracking enabled</span>
+    <span>📊 Election AI System Active</span>
+    <span>🗳️ Booth Locator: Find nearest polling stations using GPS</span>
+    <span>🤖 ML Model: XGBoost + GradientBoosting for result prediction</span>
+    <span>📍 Real-time constituency tracking enabled</span>
+  </div>
+</div>
+
+<div class="container">
+  <div class="filter-bar">
+    <div class="filter-copy">
+      <h3>Dynamic Election Filters</h3>
+      <p>Switch year or focus on a party to reframe the dashboard instantly.</p>
+      <div class="filter-meta">
+        <span class="filter-pill" id="filter-pill-year">Latest year</span>
+        <span class="filter-pill" id="filter-pill-party">All parties</span>
+        <span class="filter-pill" id="filter-pill-count">Loading coverage</span>
+      </div>
+    </div>
+    <div class="filter-controls">
+      <select id="filter-year" class="filter-select"></select>
+      <select id="filter-party" class="filter-select"></select>
+    </div>
+  </div>
+
+  <!-- Stat Cards -->
+  <div class="stats-row" id="stat-cards">
+    <div class="stat-card"><div class="stat-label">Constituencies</div><div class="stat-value" id="s-const">—</div><div class="stat-sub" id="s-const-sub">Selected year overview</div></div>
+    <div class="stat-card"><div class="stat-label">Avg Turnout</div><div class="stat-value" id="s-turnout">—</div><div class="stat-sub" id="s-turnout-sub">Selected year turnout</div></div>
+    <div class="stat-card"><div class="stat-label" id="s-party-label">Leading Party</div><div class="stat-value" id="s-party">—</div><div class="stat-sub" id="s-party-sub">Statewide seat leader</div></div>
+    <div class="stat-card"><div class="stat-label">Total Voters</div><div class="stat-value" id="s-voters">—</div><div class="stat-sub" id="s-voters-sub">Active electorate</div></div>
+  </div>
+
+  <div class="analysis-strip">
+    <div class="analysis-card" id="analysis-balance">
+      <h3>Seat Balance</h3>
+      <p>Loading current seat balance analysis...</p>
+    </div>
+    <div class="analysis-card" id="analysis-momentum">
+      <h3>Trend Momentum</h3>
+      <p>Loading party momentum analysis...</p>
+    </div>
+    <div class="analysis-card" id="analysis-turnout">
+      <h3>Turnout Lens</h3>
+      <p>Loading turnout distribution insight...</p>
+    </div>
+  </div>
+
+  <div class="year-insight" id="year-insight">
+    <div class="status-msg">Loading selected year insight...</div>
+  </div>
+
+  <!-- Charts Row 1 -->
+  <div class="charts-grid">
+    <div class="chart-card">
+      <div class="chart-title">Seat Distribution</div>
+      <div class="chart-frame">
+        <div id="chart-seats" class="chart-plot" style="height:300px"></div>
+        <div class="chart-aside" id="seat-summary">
+          <div class="status-msg">Loading seat analysis...</div>
+        </div>
+      </div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Vote Share Trend</div>
+      <div class="chart-frame">
+        <div id="chart-trend" class="chart-plot" style="height:300px"></div>
+        <div class="chart-aside" id="trend-summary">
+          <div class="status-msg">Loading trend analysis...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Charts Row 2 -->
+  <div class="bottom-grid" style="margin-bottom:16px">
+    <div class="chart-card">
+      <div class="chart-title">Voter Turnout by Constituency</div>
+      <div id="chart-turnout" style="height:320px"></div>
+    </div>
+
+    <!-- Prediction Panel -->
+    <div class="predict-panel">
+      <div class="chart-title">AI Prediction</div>
+      <div class="predict-form">
+        <input type="text" id="pred-constituency" placeholder="Constituency (e.g. Maninagar)" value="Maninagar">
+        <input type="number" id="pred-year" placeholder="Year" value="2027" min="2024" max="2035">
+        <button class="btn" onclick="runPrediction()">Predict Winner</button>
+      </div>
+      <div id="pred-result"><div class="status-msg">Enter a constituency and click Predict</div></div>
+    </div>
+  </div>
+
+  <!-- Booth Locator + Map -->
+  <div class="bottom-grid">
+    <div class="booth-panel">
+      <div class="chart-title">📍 Booth Locator</div>
+      <div class="booth-form">
+        <input type="number" id="b-lat" placeholder="Latitude (e.g. 23.03)" step="0.0001">
+        <input type="number" id="b-lng" placeholder="Longitude (e.g. 72.58)" step="0.0001">
+        <button class="btn" onclick="findBooths()">Find Nearest</button>
+      </div>
+      <div id="booth-results">
+        <div class="status-msg">Enter your coordinates to find nearby polling booths</div>
+      </div>
+    </div>
+
+    <div class="chart-panel chart-card">
+      <div class="chart-title">Win Probability Chart</div>
+      <div id="chart-confidence" style="height:280px">
+        <div class="status-msg">Run a prediction to see win probabilities</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="profile-modal" id="profile-modal" onclick="closeProfile(event)">
+  <div class="profile-card" onclick="event.stopPropagation()">
+    <h2>Profile</h2>
+    <div class="profile-grid">
+      <div class="profile-item">
+        <span>Name</span>
+        <strong>{{ profile_name }}</strong>
+      </div>
+      <div class="profile-item">
+        <span>Email</span>
+        <strong>{{ profile_email|default:"Not available" }}</strong>
+      </div>
+      <div class="profile-item">
+        <span>Role</span>
+        <strong>{{ profile_role|title }}</strong>
+      </div>
+    </div>
+    <button class="btn profile-close" type="button" onclick="closeProfile()">Close</button>
+  </div>
+</div>
+
+<script>
+const API = window.location.origin;
+const dashboardFilters = {
+  year: null,
+  party: 'ALL',
+};
+const candidateExplorer = {
+  page: 1,
+  search: '',
+};
+// Clock
+function updateClock() {
+  document.getElementById('clock').textContent = new Date().toLocaleTimeString('en-IN');
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// Plotly config
+const PLOTLY_CONFIG = { displayModeBar: false, responsive: true };
+const PLOTLY_LAYOUT_BASE = {
+  paper_bgcolor: 'rgba(0,0,0,0)',
+  plot_bgcolor: 'rgba(0,0,0,0)',
+  font: { color: '#e2e8f0', family: 'Inter, sans-serif', size: 12 },
+  margin: { t: 20, b: 40, l: 40, r: 20 },
+};
+
+function renderChart(divId, figData) {
+  const layout = Object.assign({}, figData.layout, PLOTLY_LAYOUT_BASE, {
+    margin: figData.layout.margin || PLOTLY_LAYOUT_BASE.margin,
+    title: '',
+  });
+  Plotly.newPlot(divId, figData.data, layout, PLOTLY_CONFIG);
+}
+
+function buildQuery() {
+  const params = new URLSearchParams();
+  if (dashboardFilters.year) params.set('year', dashboardFilters.year);
+  if (dashboardFilters.party && dashboardFilters.party !== 'ALL') params.set('party', dashboardFilters.party);
+  const query = params.toString();
+  return query ? `?${query}` : '';
+}
+
+function formatMillions(value) {
+  return `${(value / 1e6).toFixed(1)}M`;
+}
+
+function updateSelectedPartyCard(stats) {
+  if (stats.selected_party && stats.selected_party !== 'ALL') {
+    document.getElementById('s-party-label').textContent = `${stats.selected_party} Snapshot`;
+    document.getElementById('s-party').textContent =
+      stats.selected_party_vote_share != null ? `${stats.selected_party_vote_share}%` : '—';
+    document.getElementById('s-party-sub').textContent =
+      stats.selected_party_vote_share != null
+        ? `${stats.selected_party_wins ?? 0} seats • ${formatMillions(stats.selected_party_votes || 0)} votes`
+        : 'No data in selected year';
+  } else {
+    document.getElementById('s-party-label').textContent = 'Leading Party';
+    document.getElementById('s-party').textContent = stats.leading_party;
+    document.getElementById('s-party-sub').textContent = `${formatMillions(stats.leading_party_votes || 0)} votes in ${stats.year}`;
+  }
+}
+
+function renderYearInsight(stats) {
+  const container = document.getElementById('year-insight');
+  const standout = stats.standout_race;
+  const districtMap = stats.district_map || [];
+  const legendParties = [...new Set(districtMap.map(item => item.party))].slice(0, 6);
+  const mapDots = districtMap.map(item => `
+    <div
+      class="map-district"
+      style="left:${item.x}%; top:${item.y}%; background:${item.color};"
+      data-label="${item.district}: ${item.party}">
+    </div>
+  `).join('');
+  const legendHtml = legendParties.map(party => `
+    <span class="map-legend-item">
+      <span class="map-legend-swatch" style="background:${districtMap.find(item => item.party === party)?.color || '#888'}"></span>
+      ${party}
+    </span>
+  `).join('');
+  container.innerHTML = `
+    <div class="year-insight-header">
+      <div>
+        <h3>Selected Year Insight</h3>
+        <p>This panel explains what the chosen election year represents using real imported records, election type labeling, standout winners, and a searchable list of all candidates who contested.</p>
+      </div>
+      <div class="year-badge">${stats.election_label} • ${stats.year}</div>
+    </div>
+    <div class="year-insight-grid">
+      <div class="year-summary-card">
+        <div class="insight-label">Election Overview</div>
+        <div class="insight-value">${stats.leading_party}</div>
+        <div class="insight-sub">Largest winning party in ${stats.year}</div>
+        <div class="summary-kpis">
+          <div class="summary-kpi">
+            <div class="insight-label">Constituencies</div>
+            <div class="insight-value">${stats.total_constituencies}</div>
+            <div class="insight-sub">Contested seats in the selected year</div>
+          </div>
+          <div class="summary-kpi">
+            <div class="insight-label">Turnout</div>
+            <div class="insight-value">${stats.avg_turnout}%</div>
+            <div class="insight-sub">Average voter turnout</div>
+          </div>
+          <div class="summary-kpi">
+            <div class="insight-label">Voters</div>
+            <div class="insight-value">${formatMillions(stats.total_voters)}</div>
+            <div class="insight-sub">Registered electorate</div>
+          </div>
+        </div>
+        <div class="overview-map">
+          <div id="geoserver-map"></div>
+          <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+            <path
+              d="M15,14 L28,10 L38,13 L48,18 L55,15 L61,20 L66,28 L72,30 L76,39 L72,48 L78,58 L74,67 L69,75 L66,88 L58,92 L53,86 L47,77 L42,69 L37,64 L31,57 L22,52 L16,45 L10,36 L7,25 Z"
+              fill="rgba(255,255,255,0.03)"
+              stroke="rgba(255,255,255,0.12)"
+              stroke-width="1.2"
+            />
+          </svg>
+          ${mapDots}
+        </div>
+        <div class="map-legend">${legendHtml}</div>
+        ${standout ? `
+          <div class="winner-item" style="margin-top:12px;">
+            <strong>Standout Winner: ${standout.candidate}</strong>
+            <span>${standout.party} in ${standout.constituency}</span>
+            <span>${standout.vote_share}% vote share • ${standout.votes.toLocaleString()} votes</span>
+          </div>
+        ` : ''}
+      </div>
+      <div class="winner-list-card">
+        <div class="insight-label">All Candidates In ${stats.year}</div>
+        <div class="candidate-toolbar">
+          <input id="candidate-search" class="candidate-search" type="text" placeholder="Search candidate, constituency, or party">
+          <span class="candidate-meta" id="candidate-meta">Loading...</span>
+        </div>
+        <div class="winner-list" id="candidate-list">
+          <div class="status-msg">Loading candidates...</div>
+        </div>
+        <div class="candidate-pagination">
+          <button id="candidate-prev" type="button">Previous</button>
+          <span class="candidate-meta" id="candidate-page-label">Page 1</span>
+          <button id="candidate-next" type="button">Next</button>
+        </div>
+      </div>
+    </div>
+  `;
+  const searchInput = document.getElementById('candidate-search');
+  searchInput.value = candidateExplorer.search;
+  searchInput.addEventListener('input', async (event) => {
+    candidateExplorer.search = event.target.value.trim();
+    candidateExplorer.page = 1;
+    await loadCandidateExplorer();
+  });
+  document.getElementById('candidate-prev').addEventListener('click', async () => {
+    if (candidateExplorer.page > 1) {
+      candidateExplorer.page -= 1;
+      await loadCandidateExplorer();
+    }
+  });
+  document.getElementById('candidate-next').addEventListener('click', async () => {
+    candidateExplorer.page += 1;
+    await loadCandidateExplorer();
+  });
+}
+
+function normalizeName(value) {
+  const raw = String(value || '').trim().toUpperCase();
+  const cleaned = raw
+    .replace(/[().,'-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const aliases = {
+    'AHMEDABAD': 'AHMADABAD',
+    'AHMADABAD': 'AHMADABAD',
+    'MEHSANA': 'MAHESANA',
+    'MAHESANA': 'MAHESANA',
+    'BANASKANTHA': 'BANAS KANTHA',
+    'BANAS KANTHA': 'BANAS KANTHA',
+    'SABARKANTHA': 'SABAR KANTHA',
+    'SABAR KANTHA': 'SABAR KANTHA',
+    'DAHOD': 'DOHAD',
+    'DOHAD': 'DOHAD',
+    'CHHOTA UDAIPUR': 'CHOTA UDAIPUR',
+    'CHOTA UDAIPUR': 'CHOTA UDAIPUR',
+    'DEVBHOOMI DWARKA': 'DEVBHUMI DWARKA',
+    'DEVBHUMI DWARKA': 'DEVBHUMI DWARKA',
+    'PANCHMAHAL': 'PANCH MAHALS',
+    'PANCHMAHALS': 'PANCH MAHALS',
+    'PANCH MAHAL': 'PANCH MAHALS',
+    'PANCH MAHALS': 'PANCH MAHALS',
+    'THE DANGS': 'THE DANGS',
+    'DANG': 'THE DANGS',
+    'DANGS': 'THE DANGS',
+    'KUTCH': 'KACHCHH',
+    'KACHCHH': 'KACHCHH',
+  };
+  return aliases[cleaned] || cleaned;
+}
+
+function buildWinnerLookup(stats) {
+  const lookup = new Map();
+  const districtRecords = stats.district_map || [];
+  districtRecords.forEach(item => {
+    lookup.set(normalizeName(item.district), item);
+  });
+  const winnerRecords = stats.winner_records || [];
+  winnerRecords.forEach(item => {
+    lookup.set(normalizeName(item.constituency), item);
+  });
+  return lookup;
+}
+
+async function fetchRealMapPayload() {
+  const apiResponse = await fetch(`${API}/dashboard/api/map-layer/`);
+  const apiPayload = await apiResponse.json();
+  if (apiPayload.configured && apiPayload.geojson && apiPayload.geojson.features) {
+    return apiPayload;
+  }
+
+  try {
+    const staticResponse = await fetch('/static/maps/gujarat_districts.geojson');
+    const staticGeojson = await staticResponse.json();
+    if (staticGeojson && staticGeojson.features) {
+      return {
+        configured: true,
+        mode: 'static-fallback',
+        source: '/static/maps/gujarat_districts.geojson',
+        geojson: staticGeojson,
+      };
+    }
+  } catch (error) {
+  }
+
+  return apiPayload;
+}
+
+async function loadGeoServerMap(stats) {
+  const mapWrap = document.querySelector('.overview-map');
+  if (!mapWrap) return;
+  try {
+    const payload = await fetchRealMapPayload();
+    if (!payload.configured || !payload.geojson || !payload.geojson.features) {
+      mapWrap.classList.remove('has-real-map');
+      return;
+    }
+
+    mapWrap.classList.add('has-real-map');
+    const winnerLookup = buildWinnerLookup(stats);
+    renderGeoJsonMap(payload.geojson, winnerLookup);
+  } catch (error) {
+    mapWrap.classList.remove('has-real-map');
+  }
+}
+
+function extractPolygonRings(geometry) {
+  if (!geometry || !geometry.coordinates) return [];
+  if (geometry.type === 'Polygon') {
+    return [geometry.coordinates[0]];
+  }
+  if (geometry.type === 'MultiPolygon') {
+    return geometry.coordinates.map(polygon => polygon[0]);
+  }
+  return [];
+}
+
+function projectGeoPoint(lng, lat, bounds, width, height, padding) {
+  const innerWidth = width - (padding * 2);
+  const innerHeight = height - (padding * 2);
+  const x = padding + (((lng - bounds.minLng) / (bounds.maxLng - bounds.minLng || 1)) * innerWidth);
+  const y = padding + innerHeight - (((lat - bounds.minLat) / (bounds.maxLat - bounds.minLat || 1)) * innerHeight);
+  return [x, y];
+}
+
+function featureDisplayName(props) {
+  return props.name || props.constituency || props.constituency_name || props.district || 'Region';
+}
+
+function partyMapColor(party) {
+  return {
+    'BJP': '#FF9933',
+    'INC': '#38BDF8',
+    'Congress': '#38BDF8',
+    'AAP': '#10B981',
+    'IND': '#E5E7EB',
+    'JD': '#FACC15',
+    'AAAP': '#A78BFA',
+    'INC(I)': '#64748B',
+  }[party] || '#64748B';
+}
+
+function buildFeatureTooltip(name, winner) {
+  if (!winner) {
+    return `${name}\nNo winner mapped`;
+  }
+  const detail = winner.vote_share
+    ? `${winner.vote_share}% vote share`
+    : `${Number(winner.votes || 0).toLocaleString()} votes`;
+  return `${name}\n${winner.party}${winner.candidate ? ` - ${winner.candidate}` : ''}\n${detail}`;
+}
+
+function renderGeoJsonMap(geojson, winnerLookup) {
+  const target = document.getElementById('geoserver-map');
+  const mapWrap = document.querySelector('.overview-map');
+  if (!target || !mapWrap) return;
+
+  const width = 860;
+  const height = 360;
+  const padding = 18;
+  const features = (geojson.features || []).filter(feature => extractPolygonRings(feature.geometry).length);
+  if (!features.length) {
+    target.innerHTML = '';
+    mapWrap.classList.remove('has-real-map');
+    return;
+  }
+
+  let minLng = Infinity;
+  let maxLng = -Infinity;
+  let minLat = Infinity;
+  let maxLat = -Infinity;
+
+  features.forEach(feature => {
+    extractPolygonRings(feature.geometry).forEach(ring => {
+      ring.forEach(([lng, lat]) => {
+        minLng = Math.min(minLng, lng);
+        maxLng = Math.max(maxLng, lng);
+        minLat = Math.min(minLat, lat);
+        maxLat = Math.max(maxLat, lat);
+      });
+    });
+  });
+
+  const bounds = { minLng, maxLng, minLat, maxLat };
+  const paths = features.map(feature => {
+    const props = feature.properties || {};
+    const name = normalizeName(
+      props.constituency || props.constituency_name || props.name || props.district
+    );
+    const winner = winnerLookup.get(name);
+    const fillColor = winner ? partyMapColor(winner.party) : '#334155';
+    const fillOpacity = winner ? 0.84 : 0.28;
+    const pathData = extractPolygonRings(feature.geometry).map(ring => {
+      const commands = ring.map(([lng, lat], index) => {
+        const [x, y] = projectGeoPoint(lng, lat, bounds, width, height, padding);
+        return `${index === 0 ? 'M' : 'L'} ${x.toFixed(2)} ${y.toFixed(2)}`;
+      }).join(' ');
+      return `${commands} Z`;
+    }).join(' ');
+    const title = buildFeatureTooltip(featureDisplayName(props), winner)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+
+    return `
+      <path
+        class="geojson-region"
+        d="${pathData}"
+        fill="${fillColor}"
+        fill-opacity="${fillOpacity}"
+        stroke="rgba(255,255,255,0.26)"
+        stroke-width="0.9"
+      >
+        <title>${title}</title>
+      </path>
+    `;
+  }).join('');
+
+  target.innerHTML = `
+    <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMidYMid meet" aria-label="Gujarat election map">
+      ${paths}
+    </svg>
+  `;
+}
+
+async function loadCandidateExplorer() {
+  const params = new URLSearchParams();
+  if (dashboardFilters.year) params.set('year', dashboardFilters.year);
+  if (dashboardFilters.party && dashboardFilters.party !== 'ALL') params.set('party', dashboardFilters.party);
+  if (candidateExplorer.search) params.set('search', candidateExplorer.search);
+  params.set('page', candidateExplorer.page);
+
+  const r = await fetch(`${API}/dashboard/api/candidates/?${params.toString()}`);
+  const d = await r.json();
+  candidateExplorer.page = d.page;
+
+  const list = document.getElementById('candidate-list');
+  list.innerHTML = d.items.length ? d.items.map(item => `
+    <div class="winner-item">
+      <strong>${item.candidate}</strong>
+      <span>${item.party} • ${item.constituency}${item.district ? `, ${item.district}` : ''}</span>
+      <span>${item.vote_share}% vote share • ${item.votes.toLocaleString()} votes • Position ${item.position || '-'}</span>
+      ${item.won ? '<span class="winner-pill">Winner</span>' : ''}
+    </div>
+  `).join('') : '<div class="status-msg">No candidates matched this filter.</div>';
+
+  document.getElementById('candidate-meta').textContent = `${d.total} candidates`;
+  document.getElementById('candidate-page-label').textContent = `Page ${d.page} of ${d.total_pages}`;
+  document.getElementById('candidate-prev').disabled = d.page <= 1;
+  document.getElementById('candidate-next').disabled = d.page >= d.total_pages;
+}
+
+function populateFilterOptions(stats) {
+  const yearSelect = document.getElementById('filter-year');
+  const partySelect = document.getElementById('filter-party');
+
+  if (!yearSelect.dataset.ready) {
+    yearSelect.innerHTML = (stats.available_years || []).map(year => `<option value="${year}">${year}</option>`).join('');
+    yearSelect.dataset.ready = '1';
+    yearSelect.addEventListener('change', async (event) => {
+      dashboardFilters.year = event.target.value;
+      dashboardFilters.party = 'ALL';
+      await refreshDashboard();
+    });
+  }
+
+  const partyOptions = [{ value: 'ALL', label: 'All Parties' }, ...(stats.party_options || []).map(option => ({
+    value: option.value,
+    label: `${option.label} • ${option.seats} seats • ${option.avg_vote_share}% avg share`,
+  }))];
+  partySelect.innerHTML = partyOptions.map(option => `<option value="${option.value}">${option.label}</option>`).join('');
+  if (!partySelect.dataset.ready) {
+    partySelect.dataset.ready = '1';
+    partySelect.addEventListener('change', async (event) => {
+      dashboardFilters.party = event.target.value;
+      await refreshDashboard();
+    });
+  }
+  yearSelect.value = String(stats.year);
+  partySelect.value = stats.selected_party || 'ALL';
+
+  document.getElementById('filter-pill-year').textContent = `Year ${stats.year}`;
+  document.getElementById('filter-pill-party').textContent = stats.selected_party === 'ALL' ? 'All parties' : `Party ${stats.selected_party}`;
+  document.getElementById('filter-pill-count').textContent = `${stats.total_constituencies} constituencies • ${(stats.party_options || []).length} parties`;
+}
+
+function renderSeatSummary(summary) {
+  const container = document.getElementById('seat-summary');
+  const breakdown = (summary.party_breakdown || []).slice(0, 4).map((item, index) => `
+    <div class="insight-card">
+      <div class="insight-label">${item.party}</div>
+      <div class="insight-value">${item.seats}</div>
+      <div class="insight-sub">${((item.seats / summary.total_seats) * 100).toFixed(1)}% of house</div>
+    </div>
+  `).join('');
+  container.innerHTML = `
+    <div class="insight-card featured">
+      <div class="insight-label">Leading Bloc</div>
+      <div class="insight-value">${summary.top_party}</div>
+      <div class="insight-sub">${summary.top_party_seats} seats • ${summary.top_party_share}% share</div>
+    </div>
+    <div class="insight-card featured">
+      <div class="insight-label">Top Two Parties</div>
+      <div class="insight-value">${summary.top_two_share}%</div>
+      <div class="insight-sub">Combined share of the assembly</div>
+    </div>
+    ${breakdown}
+  `;
+  document.getElementById('analysis-balance').innerHTML = `
+    <h3>Seat Balance</h3>
+    <p><strong>${summary.top_party}</strong> controls <strong>${summary.top_party_seats}</strong> of <strong>${summary.total_seats}</strong> seats in ${summary.year}. The top two parties together account for <strong>${summary.top_two_share}%</strong> of the house, so the mandate is concentrated rather than evenly split.</p>
+  `;
+}
+
+function renderTrendSummary(summary) {
+  const container = document.getElementById('trend-summary');
+  const snapshot = (summary.latest_snapshot || []).slice(0, 4).map(item => `
+    <div class="insight-card">
+      <div class="insight-label">${item.party}</div>
+      <div class="insight-value">${Number(item.vote_share).toFixed(1)}%</div>
+      <div class="insight-sub">Average vote share in ${summary.latest_year}</div>
+    </div>
+  `).join('');
+  container.innerHTML = `
+    <div class="insight-card featured">
+      <div class="insight-label">Latest Leader</div>
+      <div class="insight-value">${summary.leader}</div>
+      <div class="insight-sub">${summary.leader_vote_share}% in ${summary.latest_year}</div>
+    </div>
+    <div class="insight-card featured">
+      <div class="insight-label">Fastest Rising</div>
+      <div class="insight-value">${summary.fastest_rising_party}</div>
+      <div class="insight-sub">${summary.fastest_rising_change > 0 ? '+' : ''}${summary.fastest_rising_change} pts versus previous election</div>
+    </div>
+    ${snapshot}
+  `;
+  document.getElementById('analysis-momentum').innerHTML = `
+    <h3>Trend Momentum</h3>
+    <p><strong>${summary.leader}</strong> leads the latest vote-share snapshot at <strong>${summary.leader_vote_share}%</strong>. The sharpest recent movement belongs to <strong>${summary.fastest_rising_party}</strong>, which moved <strong>${summary.fastest_rising_change > 0 ? '+' : ''}${summary.fastest_rising_change}</strong> points between the last two elections in the series.</p>
+  `;
+}
+
+// Load stat cards
+async function loadStats() {
+  const r = await fetch(`${API}/dashboard/api/stats/${buildQuery()}`);
+  const d = await r.json();
+  dashboardFilters.year = d.year;
+  dashboardFilters.party = d.selected_party || 'ALL';
+  populateFilterOptions(d);
+  document.getElementById('s-const').textContent = d.total_constituencies;
+  document.getElementById('s-turnout').textContent = d.avg_turnout + '%';
+  document.getElementById('s-turnout-sub').textContent = `${d.year} election turnout`;
+  updateSelectedPartyCard(d);
+  document.getElementById('s-voters').textContent = formatMillions(d.total_voters);
+  document.getElementById('s-voters-sub').textContent = `Electorate in ${d.year}`;
+  renderYearInsight(d);
+  await loadGeoServerMap(d);
+}
+
+// Load charts
+async function loadCharts() {
+  const [seats, trend, turnout] = await Promise.all([
+    fetch(`${API}/dashboard/api/seats/${buildQuery()}`).then(r => r.json()),
+    fetch(`${API}/dashboard/api/trend/${buildQuery()}`).then(r => r.json()),
+    fetch(`${API}/dashboard/api/turnout/${buildQuery()}`).then(r => r.json()),
+  ]);
+  renderChart('chart-seats', seats.chart);
+  renderChart('chart-trend', trend.chart);
+  renderChart('chart-turnout', turnout);
+  renderSeatSummary(seats.summary);
+  renderTrendSummary(trend.summary);
+  document.getElementById('analysis-turnout').innerHTML = `
+    <h3>Turnout Lens</h3>
+    <p>The turnout panel ranks constituencies from low to high participation, making outliers easy to spot. Use it to identify where mobilisation lagged behind the state average and where vote conversion opportunities are strongest.</p>
+  `;
+}
+
+async function refreshDashboard() {
+  candidateExplorer.page = 1;
+  await loadStats();
+  await loadCharts();
+  await loadCandidateExplorer();
+}
+
+function openProfile() {
+  document.getElementById('profile-modal').classList.add('open');
+}
+
+function closeProfile(event) {
+  if (!event || event.target.id === 'profile-modal') {
+    document.getElementById('profile-modal').classList.remove('open');
+  }
+}
+
+// Prediction
+async function runPrediction() {
+  const constituency = document.getElementById('pred-constituency').value.trim();
+  const year = parseInt(document.getElementById('pred-year').value);
+  const resultDiv = document.getElementById('pred-result');
+
+  if (!constituency) { resultDiv.innerHTML = '<div class="status-msg error-msg">Enter a constituency name</div>'; return; }
+
+  resultDiv.innerHTML = '<div class="status-msg">Predicting...</div>';
+
+  try {
+    const r = await fetch(`${API}/api/predict/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+      body: JSON.stringify({ constituency, year }),
+    });
+    const d = await r.json();
+
+    if (d.error) {
+      resultDiv.innerHTML = `<div class="status-msg error-msg">${d.error}</div>`;
+      return;
+    }
+
+    const partyColors = {
+      'BJP': '#FF9933', 'Congress': '#19AAED', 'AAP': '#0078A4',
+      'SP': '#FF0000', 'BSP': '#1B4F8A', 'TMC': '#00FF00',
+    };
+
+    let barsHtml = d.all_parties.slice(0, 5).map(p => `
+      <div class="prob-bar-wrap">
+        <div class="prob-label">
+          <span>${p.party}</span>
+          <span style="color:${partyColors[p.party]||'#888'}">${p.confidence_pct}%</span>
+        </div>
+        <div class="prob-bar-bg">
+          <div class="prob-bar" style="width:${p.confidence_pct}%;background:${partyColors[p.party]||'#888'}"></div>
+        </div>
+      </div>`).join('');
+
+    resultDiv.innerHTML = `
+      <div class="winner-box">
+        <div class="winner-party">${d.predicted_winner}</div>
+        <div class="winner-conf">Predicted winner — ${(d.confidence * 100).toFixed(1)}% confidence</div>
+      </div>
+      ${barsHtml}`;
+
+    // Load confidence chart
+    loadConfidenceChart(constituency);
+  } catch (e) {
+    resultDiv.innerHTML = `<div class="status-msg error-msg">Error: ${e.message}</div>`;
+  }
+}
+
+async function loadConfidenceChart(constituency) {
+  const r = await fetch(`${API}/dashboard/api/confidence/?constituency=${encodeURIComponent(constituency)}`);
+  const d = await r.json();
+  if (d.chart) {
+    document.getElementById('chart-confidence').innerHTML = '';
+    renderChart('chart-confidence', d.chart);
+  }
+}
+
+// Booth Locator
+async function findBooths() {
+  const lat = parseFloat(document.getElementById('b-lat').value);
+  const lng = parseFloat(document.getElementById('b-lng').value);
+  const div = document.getElementById('booth-results');
+
+  if (isNaN(lat) || isNaN(lng)) {
+    div.innerHTML = '<div class="status-msg error-msg">Enter valid latitude and longitude</div>';
+    return;
+  }
+
+  div.innerHTML = '<div class="status-msg">Searching...</div>';
+
+  try {
+    const r = await fetch(`${API}/api/booth/nearest/?lat=${lat}&lng=${lng}&limit=5`);
+    const booths = await r.json();
+
+    if (!booths.length) {
+      div.innerHTML = '<div class="status-msg">No booths found nearby. Add booths via Django Admin.</div>';
+      return;
+    }
+
+    div.innerHTML = '<div class="booth-results">' +
+      booths.map(b => `
+        <div class="booth-item">
+          <div>
+            <div class="booth-name">${b.name}</div>
+            <div class="booth-meta">${b.address} · ${b.constituency}</div>
+            <div class="booth-meta">Voters: ${b.total_voters.toLocaleString()} ${b.is_accessible ? '· ✅ Accessible' : ''} ${b.has_cctv ? '· 📷 CCTV' : ''}</div>
+          </div>
+          <div class="booth-dist">${b.distance_km} km</div>
+        </div>`).join('') +
+      '</div>';
+  } catch (e) {
+    div.innerHTML = `<div class="status-msg error-msg">${e.message}</div>`;
+  }
+}
+
+function getCookie(name) {
+  const v = document.cookie.match('(^|;) ?' + name + '=([^;]*)(;|$)');
+  return v ? v[2] : '';
+}
+
+// Init
+refreshDashboard();
+</script>
+</body>
+</html>

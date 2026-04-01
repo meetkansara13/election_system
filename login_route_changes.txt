@@ -1,0 +1,140 @@
+Change 1: Added a compatibility route in `election_system/urls.py` for `/accounts/login/`.
+Reason: Some requests were still redirecting to Django's older/default login path, which caused a 404.
+
+Change 2: Added a compatibility route in `election_system/urls.py` for `/accounts/logout/`.
+Reason: This keeps logout behavior consistent if any old links or redirects still point to `/accounts/logout/`.
+
+Change 3: Kept `/login/` and `/logout/` as the main web authentication routes.
+Reason: Your current settings and dashboard view already use `/login/`, so this avoids breaking existing working paths.
+
+Change 4: Removed the login page auto-redirect based only on `localStorage` token in `templates/accounts/login.html`.
+Reason: The token in browser storage was sending users back to `/dashboard/` even when Django session auth had not been established, causing a redirect loop.
+
+Change 5: Updated login/register success redirects in `templates/accounts/login.html` to use the `next` query parameter when present.
+Reason: After a successful login, users should return to the page they originally tried to open, such as `/dashboard/`.
+
+Change 6: Switched the web login flow to a normal Django form POST in `apps/accounts/views.py` and `templates/accounts/login.html`.
+Reason: This sets the Django session directly in the web flow and removes dependence on client-side token redirects for page access.
+
+Change 7: Removed JavaScript-driven web login redirects from `templates/accounts/login.html`.
+Reason: The dashboard page is protected by Django session auth, so the web login page should use server-side authentication instead of browser-only token handling.
+
+Change 8: Added CSRF and JSON headers to the model-training request in `templates/dashboard/index.html`.
+Reason: `/api/predict/train/` is a POST request, so Django was rejecting it with `403 Forbidden` when the dashboard sent no CSRF token.
+
+Change 9: Improved model-training error handling in `templates/dashboard/index.html`.
+Reason: The dashboard now shows the actual backend error message instead of a generic failure message, which makes debugging easier.
+
+Change 10: Added `Profile` and `Logout` controls to the dashboard header in `templates/dashboard/index.html`.
+Reason: The dashboard was missing basic account actions even though login/logout routes already existed.
+
+Change 11: Passed logged-in user details from `apps/dashboard/views.py` into the dashboard template.
+Reason: The profile popup now shows the current user's name, email, and role without an extra frontend request.
+
+Change 12: Removed the manual train-model banner and button from `templates/dashboard/index.html`.
+Reason: Model training should no longer depend on a manual frontend action after login.
+
+Change 13: Added backend background model training on login in `apps/accounts/views.py`.
+Reason: After login, the server now starts model training automatically in the background instead of asking the user to press a training button.
+
+Change 14: Restored the session-based login template in `templates/accounts/login.html`.
+Reason: The file had been overwritten with an older token-based version that forced redirects back to `/dashboard/` after logout.
+
+Change 15: Added `templates/accounts/logout.html` and updated `LogoutPageView` to render it.
+Reason: Logout now clears browser `localStorage` before returning to `/login/`, which prevents the old client-side auth loop.
+
+Change 16: Added alternative map source settings in `election_system/settings.py` using `MAP_GEOJSON_PATH` and `MAP_GEOJSON_URL`.
+Reason: The dashboard can now load a real map from a direct file path or GeoJSON URL without requiring GeoServer to be installed.
+
+Change 17: Updated the dashboard map endpoint in `apps/dashboard/views.py` to try local file, direct URL, and then GeoServer.
+Reason: This makes the map integration more flexible when GeoServer is unavailable.
+
+Change 16: Updated the root route in `election_system/urls.py` to redirect by session state.
+Reason: Opening `http://172.20.1.42:8000/` should send logged-in users to `/dashboard/` and logged-out users to `/login/` automatically.
+
+Change 17: Updated `LoginPageView` in `apps/accounts/views.py` to redirect authenticated users to `/dashboard/`.
+Reason: Visiting `/login/` directly after a valid login session should not leave the user on the login form.
+
+Change 18: Added dynamic year and party filters in `apps/dashboard/views.py` and `templates/dashboard/index.html`.
+Reason: The dashboard should update stats and charts in real time when the user switches election year or focuses on a party.
+
+Change 19: Added selected-year insight data in `apps/dashboard/views.py`.
+Reason: The dashboard now explains the chosen election year with winner, standout race, and election snapshot details instead of only showing chart numbers.
+
+Change 20: Added a searchable, paginated candidate explorer in `apps/dashboard/views.py`, `apps/dashboard/urls.py`, and `templates/dashboard/index.html`.
+Reason: Users can now browse all candidates for the selected year without increasing page height or losing readability.
+
+Change 21: Added election-type style labeling in `apps/dashboard/views.py`.
+Reason: The selected year is now shown as a Gujarat Assembly election snapshot instead of only a raw year value.
+
+Change 22: Added flexible real-map source settings in `election_system/settings.py` and the dashboard map loader.
+Reason: The project can load a real map from a local GeoJSON file, direct URL, or GeoServer fallback.
+
+Change 23: Created `static/maps/gujarat_districts.geojson` and configured `.env` to use it by default.
+Reason: The dashboard now has a built-in local Gujarat map source and does not depend on external GeoServer setup to render a real map.
+
+Change 24: Added district-level winner coloring and improved map matching in `apps/dashboard/views.py` and `templates/dashboard/index.html`.
+Reason: The overview map can now color regions by winning party for the selected year and show better hover information.
+
+Change 25: Replaced the Leaflet-dependent overview map rendering in `templates/dashboard/index.html` with an internal GeoJSON-to-SVG renderer.
+Reason: The previous real-map flow silently fell back to the placeholder silhouette when external map initialization failed, so the dashboard now renders Gujarat district polygons directly from the local GeoJSON file without depending on CDN map libraries.
+
+Change 26: Added `scripts/build_gujarat_maps.py` and generated real Gujarat map files in `static/maps/`.
+Reason: The dashboard can now use real Gujarat district and state geometries extracted from the provided `all_districts.geojson` and `all_states.json` source datasets, while keeping the properties compatible with the existing dashboard map logic.
+
+Change 27: Added district-name normalization aliases and fixed the selected-year insight card stretching in `templates/dashboard/index.html`.
+Reason: The real Gujarat map source uses alternate spellings such as `Ahmadabad` and `Mahesana`, so alias normalization is needed to color those districts correctly, and the left insight card now stops stretching to the full candidate-list height which removes the large empty space below the map.
+
+Change 28: Added backend district normalization in `apps/dashboard/views.py` before building district winner data.
+Reason: Some election rows use district spellings like `Devbhumi Dwarka`, `Mahesana`, `Chota Udaipur`, `The Dangs`, and `Aravali`, so normalizing them on the backend ensures those districts are included in the winner map data instead of being dropped before rendering.
+
+Change 29: Added constituency-to-district fallback inference in `apps/dashboard/views.py` for older election years with blank district fields.
+Reason: Some years such as 2007 have no district values at all in the database, so the map now infers district from constituency names using years where district data exists and can still recolor the Gujarat map when the year dropdown changes.
+
+Change 30: Added `scripts/import_official_assembly_data.py` and `data/official/gujarat_assembly_official_template.csv`.
+Reason: The project now has a stricter code-based import path for cleaned official Gujarat Assembly data, which lets us load validated historical results year by year into the database without immediately deleting the existing ~20,000 legacy rows.
+
+Change 31: Added `data/official/download_checklist.txt` and the `data/official/raw/` folder scaffold.
+Reason: The project now has a dedicated place to collect official Gujarat Assembly source files year by year before converting them into one clean import CSV for the new importer.
+
+Change 32: Added `scripts/prepare_official_dataset.py` and initialized year-wise folders under `data/official/raw/`.
+Reason: The project now has an automated preparation step that creates the raw-data year structure and can later merge cleaned CSV/XLSX files into one final import CSV for direct database loading.
+
+Change 33: Added `scripts/download_official_sources.py` and `data/official/download_manifest.json`.
+Reason: The project now has a simple manifest-driven downloader so official source pages and files can be fetched into the correct year folders with one command instead of manual saving for each file.
+
+Change 34: Updated the download manifest to use an official CEO Gujarat Form-20 PDF and verified automatic year-folder storage with the downloader script.
+Reason: The ECI live results site blocked automated requests with HTTP 403, so the downloader was validated against a CEO Gujarat source that stores successfully into `data/official/raw/<year>/` and keeps the pipeline moving.
+
+Change 35: Added `scripts/generate_form20_manifest.py` and generated `data/official/download_manifest_bulk.json`.
+Reason: The project now has an automated way to build a year-wise bulk download manifest for official CEO Gujarat Form-20 PDFs instead of entering hundreds of URLs by hand.
+
+Change 36: Downloaded 546 official CEO Gujarat Form-20 PDFs into `data/official/raw/2007/`, `data/official/raw/2012/`, and `data/official/raw/2017/`.
+Reason: The raw official source archive is now populated locally for three full Gujarat Assembly election years, which is the base needed before extraction and database import can happen.
+
+Change 37: Added `scripts/inspect_form20_pdf.py` and installed `pypdf`, `pdfplumber`, and `pymupdf` in the `elc-env` environment.
+Reason: The extraction pipeline needed real PDF parsing support plus a repeatable way to inspect Form-20 layouts before building the structured parser.
+
+Change 38: Added `scripts/extract_form20_official_rows.py` and produced the first cleaned CSV output from official Form-20 PDFs.
+Reason: The project now has a code-based bridge from downloaded official PDFs to DB-ready candidate rows using official vote totals combined with the existing election metadata already stored in PostgreSQL.
+
+Change 39: Improved the Form-20 extraction logic to use `pdfplumber` last-page parsing, electors extraction, and candidate-column matching.
+Reason: Different constituencies use different Form-20 layouts, so the extractor now targets the cleaner last-page summary structure instead of relying on a single brittle text layout.
+
+Change 40: Ran the first full 2012 extraction pass and generated `data/official/cleaned/gujarat_assembly_2012_official_from_form20.csv`.
+Reason: This gives the project a measurable baseline for official PDF extraction coverage, showing which constituencies already parse cleanly and which layout variants still need additional handling before a full-year DB import.
+
+Change 41: Improved `scripts/extract_form20_official_rows.py` to use summary-page selection from the last PDF pages and party-order-aware candidate matching.
+Reason: Some CEO Form-20 files keep the final totals on the second-last page or expose a clean party row before the candidate serial numbers, so the extractor now handles more layout variants instead of assuming one fixed last-page format.
+
+Change 42: Tightened header-noise filtering and widened candidate-name capture in `scripts/extract_form20_official_rows.py`.
+Reason: A number of failing PDFs were leaking words like `Sr.` and other table labels into the candidate columns, so the extractor now strips more header noise and captures more of each candidate name before attempting the DB match.
+
+Change 43: Added a `pypdf`-based fallback candidate-header path in `scripts/extract_form20_official_rows.py`.
+Reason: Some official Form-20 PDFs expose clean candidate names in the `pypdf` text output while `pdfplumber` scrambles the same header block, so the extractor now falls back to the cleaner source when the column-based match fails.
+
+Change 44: Added alternate header scanning for PDFs where the candidate list appears after the form headings instead of before them.
+Reason: A subset of Form-20 layouts prints the candidate names between the tendered-votes heading block and the polling-table block, so the extractor now looks in that region as well instead of assuming all names appear only above the form header.
+
+Change 45: Widened totals-row capture in `scripts/extract_form20_official_rows.py` for split summary layouts.
+Reason: Some PDFs split labels like `Total for A.C.` and the numeric totals across nearby lines, so the extractor now reads a wider summary window when trying to collect the final official vote totals.
